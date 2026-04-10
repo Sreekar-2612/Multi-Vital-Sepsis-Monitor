@@ -28,8 +28,10 @@ md_title = """\
 # ---------------------------------------------------------------------------
 code_imports = """\
 import json
+import time
 import logging
-from vitals_types import VitalsSample
+from IPython.display import clear_output
+from vitals_types import VitalsSample, BASELINE_WINDOWS
 from simulator import PatientStreamSimulator
 from models_factory import build_population_if, build_random_forest
 from sepsis_detector import SepsisDetector

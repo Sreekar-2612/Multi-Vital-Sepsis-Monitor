@@ -85,12 +85,14 @@ class SepsisDetector:
         # Artifact detection (movement spike)
         art_contaminated = sample.movement > self._locked_means["movement"] * 2.5
 
-        # Baseline drift correction (every 10 consecutive normal windows)
-        if self._consecutive_normal >= 10:
+        # Baseline drift correction (continuous slow update if not critical)
+        # We use the previous window's status to avoid circular dependency
+        prev_status = self._score_history[-1]["status"] if self._score_history else "NORMAL"
+        if prev_status != "CRITICAL":
             for v in VITALS:
-                self._drift_means[v] = 0.9 * self._drift_means[v] + 0.1 * float(getattr(sample, v))
-            self._consecutive_normal = 0
-            logger.debug("Baseline drift corrected at window %d", self._window_count)
+                self._drift_means[v] = 0.995 * self._drift_means[v] + 0.005 * float(getattr(sample, v))
+            if self._window_count % 30 == 0:
+                logger.info("Adaptive baseline drift applied at window %d", self._window_count)
 
         # Z-scores (using adaptive drift_means)
         z_scores = {
