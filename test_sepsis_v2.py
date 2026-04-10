@@ -17,18 +17,19 @@ Run:
 
 import datetime
 import sys
+import json
+import logging
+import unittest
 import numpy as np
+from types import SimpleNamespace
 
-from sepsis_detector_v2 import (
-    VitalsSample,
-    BaselineEstablishment,
-    SepsisDetector,
-    PatientStreamSimulator,
-    build_population_if,
-    build_random_forest,
-    BASELINE_WINDOWS,
-    VITALS,
-)
+# Modular Imports
+from vitals_types import VitalsSample, BaselineData, VITALS, BASELINE_WINDOWS
+from baseline_establishment import BaselineEstablishment
+from sepsis_detector import SepsisDetector
+from anomaly_scoring import AnomalyScorer
+from simulator import PatientStreamSimulator
+from models_factory import build_population_if, build_random_forest
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -105,8 +106,10 @@ def test_1_high_confidence():
     check("Baseline locked after 5 windows", bd is not None)
     check("Mode is LOCKED", bd.mode == "LOCKED", f"got '{bd.mode}'")
     check("Confidence >= 60%", bd.confidence >= 60, f"confidence={bd.confidence:.1f}%")
-    check("Stability component > 0", bd.confidence_breakdown["stability"] > 0)
-    check("Consistency component > 0", bd.confidence_breakdown["consistency"] > 0)
+    check("Stability component > 0", bd.confidence_breakdown["Stability"] > 0)
+    check("Consistency component > 0", bd.confidence_breakdown["Consistency"] > 0)
+    check("Activity component > 0", bd.confidence_breakdown["Activity"] > 0)
+    check("Variability component > 0", bd.confidence_breakdown["Variability"] > 0)
     check("Personal IF trained", est.personal_if is not None)
 
 
@@ -149,7 +152,7 @@ def test_2_hybrid_mode():
     detector = SepsisDetector(POP_IF, RF)
     detector._baseline_est = est
     detector._baseline = bd
-    from sepsis_detector_v2 import AnomalyScorer
+    # Use Scorer from detector (already initialized via add_baseline_window logic)
     detector._scorer = AnomalyScorer(bd, est.personal_if, POP_IF)
 
     out = detector.process_monitoring_window(PatientStreamSimulator(condition=1).get_next_window())
@@ -216,19 +219,18 @@ def test_4_timeline():
             break
         if result is not None:
             locked_at_window = i
+            bd = result
 
     check("Baseline locks at window 5 (not before, not after)",
           locked_at_window == BASELINE_WINDOWS,
           f"locked at window {locked_at_window}")
 
-    bd = est.baseline_data
     check("baseline_data exists after lock", bd is not None)
 
     # Monitoring starts immediately
     detector = SepsisDetector(POP_IF, RF)
     detector._baseline_est = est
     detector._baseline = bd
-    from sepsis_detector_v2 import AnomalyScorer
     detector._scorer = AnomalyScorer(bd, est.personal_if, POP_IF)
     out = detector.process_monitoring_window(sim.get_next_window())
     check("Monitoring window 6 starts immediately after baseline lock",

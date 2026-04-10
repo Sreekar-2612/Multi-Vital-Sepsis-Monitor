@@ -27,15 +27,12 @@ md_title = """\
 # Cell 1 -- Imports and model construction
 # ---------------------------------------------------------------------------
 code_imports = """\
-import json, time
-from IPython.display import clear_output
-
-# All production logic lives in sepsis_detector_v2.py
-from sepsis_detector_v2 import (
-    SepsisDetector, PatientStreamSimulator,
-    build_population_if, build_random_forest,
-    BASELINE_WINDOWS,
-)
+import json
+import logging
+from vitals_types import VitalsSample
+from simulator import PatientStreamSimulator
+from models_factory import build_population_if, build_random_forest
+from sepsis_detector import SepsisDetector
 
 print("Building shared models (population IF + Random Forest)...")
 pop_if = build_population_if()
