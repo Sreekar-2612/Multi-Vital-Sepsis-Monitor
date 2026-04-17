@@ -29,9 +29,9 @@ class AnomalyScorer:
         self._monitoring_windows += 1
         vec = [sample.to_feature_vector()]
 
-        # Personal Z-score anomaly (always available)
-        z_vals = list(z_scores.values())
-        z_anomaly = float(np.clip(np.mean(np.abs(z_vals)) * 20, 0, 100))
+        # Personal Z-score anomaly (L2 norm to amplify single-vital spikes)
+        l2_norm = np.sqrt(np.mean(np.square(list(z_scores.values()))))
+        z_anomaly = float(np.clip(l2_norm * 40, 0, 100))
 
         # Personal IF score — only used after 20 samples
         if if_ready := (self._monitoring_windows >= IF_MIN_WINDOWS):

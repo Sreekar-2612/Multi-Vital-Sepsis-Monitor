@@ -73,11 +73,10 @@ class SepsisCorrelationAnalyzer:
         # Extract vitals into DataFrame for rolling correlation
         df_list = []
         for h in score_history[-self.window_size:]:
-            v = h['vitals_current']
-            # Reconstruct dict to match PAIRS keys
+            z = h['z_scores']
             df_list.append({
-                'hr': v['hr'], 'rr': v['rr'], 'spo2': v['spo2'], 'temp': v['temp'],
-                'movement': v['movement'], 'hrv': v['hrv'], 'rrv': v['rrv']
+                'hr': z['hr'], 'rr': z['rr'], 'spo2': z['spo2'], 'temp': z['temp'],
+                'movement': z['movement'], 'hrv': z['hrv'], 'rrv': z['rrv']
             })
         df = pd.DataFrame(df_list)
 
@@ -148,11 +147,18 @@ class SepsisCorrelationAnalyzer:
 
         scores = {}
         for disease, template in templates.items():
-            # Calculate similarity (Inverse of Euclidean distance on shared keys)
-            dist = 0.0
+            # Calculate similarity (Normalized MSE on defined keys only)
+            diffs = []
             for k, target in template.items():
-                dist += (fp.get(k, 0.0) - target)**2
-            scores[disease] = 1.0 / (1.0 + np.sqrt(dist))
+                if k in fp:
+                    diffs.append((fp[k] - target)**2)
+            
+            # Distance is RMSE of available keys (avoids penalty for missing keys)
+            if not diffs:
+                scores[disease] = 0.0
+            else:
+                dist = np.sqrt(np.mean(diffs))
+                scores[disease] = 1.0 / (1.0 + dist)
 
         # Softmax normalize to sum to 1.0
         total = sum(scores.values())

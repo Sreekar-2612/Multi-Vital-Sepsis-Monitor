@@ -13,7 +13,7 @@ from baseline_establishment import BaselineEstablishment
 from derivatives import DerivativeTracker
 from anomaly_scoring import AnomalyScorer
 from feature_engine import (
-    hrv_collapse_severity, immobility_score, lactate_proxy,
+    hrv_collapse_severity, immobility_score,
     multi_system_correlation, temp_trajectory,
     feature_engine_sepsis_accel, phase_detection
 )
@@ -85,10 +85,10 @@ class SepsisDetector:
         # Artifact detection (movement spike)
         art_contaminated = sample.movement > self._locked_means["movement"] * 2.5
 
-        # Baseline drift correction (continuous slow update if not critical)
+        # Baseline drift correction (continuous slow update ONLY in NORMAL state)
         # We use the previous window's status to avoid circular dependency
         prev_status = self._score_history[-1]["status"] if self._score_history else "NORMAL"
-        if prev_status != "CRITICAL":
+        if prev_status == "NORMAL":
             for v in VITALS:
                 self._drift_means[v] = 0.995 * self._drift_means[v] + 0.005 * float(getattr(sample, v))
             if self._window_count % 30 == 0:
@@ -119,12 +119,11 @@ class SepsisDetector:
         hrv_sev = hrv_collapse_severity(hrv_hist)
         immo = immobility_score(mov_hist)
         t_traj = temp_trajectory(tmp_hist)
-        lact = lactate_proxy(sample.spo2, sample.hr, sample.rr, sample.hrv, sample.movement)
         msc = multi_system_correlation(score_hist)
         msc_val = msc if msc is not None else 0.0
 
         # ML Model
-        rf_input = [[sample.hr, sample.rr, sample.spo2, sample.temp, sample.movement, sample.hrv, sample.rrv, immo, t_traj, lact, msc_val]]
+        rf_input = [[sample.hr, sample.rr, sample.spo2, sample.temp, sample.movement, sample.hrv, sample.rrv, immo, t_traj, msc_val]]
         rf_probs = self._rf.predict_proba(rf_input)[0]
         rf_prob_severe = float(rf_probs[2]) if len(rf_probs) > 2 else 0.0
         
@@ -139,10 +138,14 @@ class SepsisDetector:
         final_raw = (
             W_RF * rf_prob_severe +
             W_ANOMALY * (anomaly_score / 100.0) +
-            W_QSOFA * (qsofa / 4.0) +
+            W_QSOFA * (qsofa / 3.0) +  # Normalized to max 3 items
             W_TRAJ * traj_boost +
             W_CORR * corr_score
         )
+
+        # Critical Spike Override: If any vital is extremely abnormal (>12 sigma)
+        if any(abs(z) > 12.0 for z in z_scores.values()):
+            final_raw += 0.22 # Direct boost to ensure critical status for extreme spikes
         hrv_multiplier = (1 + 0.3 * hrv_sev) if len(score_hist) >= 10 else 1.0
         final_score = round(min(1.0, final_raw * hrv_multiplier), 4)
 
@@ -205,7 +208,6 @@ class SepsisDetector:
             # Sepsis-specific features
             "trajectory_boost": round(traj_boost, 3),
             "hrv_collapse_severity": round(hrv_sev, 3),
-            "lactate_proxy": round(lact, 3),
             "immobility_score": round(immo, 3),
             "temp_trajectory_slope": round(t_traj, 6),
             "multi_system_correlation": round(msc, 3) if msc is not None else None,
@@ -234,3 +236,33 @@ class SepsisDetector:
         self._score_history.append(output)
         if len(self._score_history) > MAX_HISTORY: self._score_history.pop(0)
         return output
+
+    def to_dict(self) -> Dict:
+        """Serialize detector state for session resumption."""
+        return {
+            "baseline": self._baseline.to_dict() if self._baseline else None,
+            "score_history": self._score_history,
+            "window_count": self._window_count,
+            "consecutive_normal": self._consecutive_normal,
+            "locked_means": self._locked_means,
+            "drift_means": self._drift_means,
+            "mild_stress_streak": self._mild_stress_streak,
+            "mild_stress_score_buffer": self._mild_stress_score_buffer
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict, population_if: IsolationForest, rf_model: RandomForestClassifier) -> "SepsisDetector":
+        """Reconstruct detector from serialized state."""
+        detector = cls(population_if, rf_model)
+        if data["baseline"]:
+            detector._baseline = BaselineData.from_dict(data["baseline"])
+            detector._scorer = AnomalyScorer(detector._baseline, detector._baseline_est.personal_if, population_if)
+        
+        detector._score_history = data["score_history"]
+        detector._window_count = data["window_count"]
+        detector._consecutive_normal = data["consecutive_normal"]
+        detector._locked_means = data["locked_means"]
+        detector._drift_means = data["drift_means"]
+        detector._mild_stress_streak = data["mild_stress_streak"]
+        detector._mild_stress_score_buffer = data["mild_stress_score_buffer"]
+        return detector

@@ -38,6 +38,22 @@ class SepsisVisualizer:
         self.chart5_score_timeline(df_full)
         self.chart6_pairplot(df_full)
         self.chart7_abnormality_bars(score_history[-1])
+        self.display_metrics()
+
+    def display_metrics(self):
+        """Prints the saved model metrics if they exist."""
+        path = "models/metrics.json"
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                m = json.load(f)
+            print("\n" + "="*40)
+            print("  PRODUCTION MODEL PERFORMANCE")
+            print("="*40)
+            print(f"  Accuracy:  {m['accuracy']:.4f}")
+            print(f"  Precision: {m['precision']:.4f}")
+            print(f"  Recall:    {m['recall']:.4f}")
+            print(f"  F1-Score:  {m['f1']:.4f}")
+            print("="*40 + "\n")
 
     def _history_to_df(self, history: List[Dict]) -> pd.DataFrame:
         rows = []

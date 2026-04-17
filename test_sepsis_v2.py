@@ -73,7 +73,7 @@ REQUIRED_FIELDS = {
     "anomaly_score", "anomaly_method",
     "rf_prob_normal", "rf_prob_mild", "rf_prob_severe",
     "qsofa_score", "trajectory_boost",
-    "hrv_collapse_severity", "lactate_proxy", "immobility_score",
+    "hrv_collapse_severity", "immobility_score",
     "temp_trajectory_slope", "multi_system_correlation",
     "sepsis_acceleration_count",
     "final_score", "status", "sepsis_phase",
@@ -187,7 +187,7 @@ def test_3_fallback_mode():
         detector = SepsisDetector(POP_IF, RF)
         detector._baseline_est = est
         detector._baseline = bd
-        from sepsis_detector_v2 import AnomalyScorer
+        from anomaly_scoring import AnomalyScorer
         detector._scorer = AnomalyScorer(bd, est.personal_if, POP_IF)
         out = detector.process_monitoring_window(
             PatientStreamSimulator(condition=0).get_next_window())

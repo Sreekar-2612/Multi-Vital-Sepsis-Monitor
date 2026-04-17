@@ -22,11 +22,11 @@ BASELINE_WINDOWS: int = 5
 MAX_HISTORY: int = 360  # 4 hours at 40-second windows
 
 # Revised Score weights (sum = 1.0)
-W_RF: float = 0.40
-W_ANOMALY: float = 0.25
-W_QSOFA: float = 0.15
-W_TRAJ: float = 0.10
-W_CORR: float = 0.10
+W_RF: float = 0.20       # Reduced from 0.40 to avoid dampening clinical signals
+W_ANOMALY: float = 0.30  # Increased from 0.25
+W_QSOFA: float = 0.30    # Increased from 0.15 (Primary clinical driver)
+W_TRAJ: float = 0.10     # Acceleration/Trajectory
+W_CORR: float = 0.10     # Systemic Decoupling
 
 # Thresholds
 CONFIDENCE_HIGH = 75.0
@@ -70,3 +70,24 @@ class BaselineData:
     baseline_means: Dict[str, float]
     baseline_stds: Dict[str, float]
     locked_at: datetime.datetime
+
+    def to_dict(self) -> Dict:
+        return {
+            "mode": self.mode,
+            "confidence": self.confidence,
+            "confidence_breakdown": self.confidence_breakdown,
+            "baseline_means": self.baseline_means,
+            "baseline_stds": self.baseline_stds,
+            "locked_at": self.locked_at.isoformat()
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "BaselineData":
+        return cls(
+            mode=data["mode"],
+            confidence=data["confidence"],
+            confidence_breakdown=data["confidence_breakdown"],
+            baseline_means=data["baseline_means"],
+            baseline_stds=data["baseline_stds"],
+            locked_at=datetime.datetime.fromisoformat(data["locked_at"])
+        )

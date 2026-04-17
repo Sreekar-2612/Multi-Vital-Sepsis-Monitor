@@ -16,16 +16,6 @@ def immobility_score(movement_history: List[float]) -> float:
     recent_avg = np.mean(movement_history[-10:])
     return float(np.clip((25 - recent_avg) / 25.0, 0, 1))
 
-def lactate_proxy(spo2: float, hr: float, rr: float, hrv: float, mov: float) -> float:
-    """Non-invasive proxy for metabolic stress (0.0-1.0)."""
-    s = (
-        (100 - spo2) / 10.0 +
-        (hr - 70) / 100.0 +
-        (rr - 14) / 40.0 +
-        (50 - hrv) / 100.0 +
-        (10 - mov) / 50.0
-    )
-    return float(np.clip(s, 0, 1.0))
 
 def multi_system_correlation(score_history: List[Dict], min_windows: int = 10) -> Optional[float]:
     """Fraction of windows where >=3 z-scores exceeded 2sigma."""
